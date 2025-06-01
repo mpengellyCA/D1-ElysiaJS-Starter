@@ -8,7 +8,7 @@ import {JWTPayloadSpec} from "@elysiajs/jwt";
 import {Elysia, t} from "elysia";
 import {m} from "../models";
 
-export async function loginRequest(context: { body: {username: string; password: string; }, jwt: { sign: (arg0: { user: { id: number; username: string; }; }) => any; }; }) {
+async function loginRequest(context: { body: {username: string; password: string; }, jwt: { sign: (arg0: { user: { id: number; username: string; }; }) => any; }; }) {
     const { username, password } = context.body;
     if (!username || !password) {
         return {
@@ -43,7 +43,7 @@ interface RegisterRequest extends Omit<BunRequest, 'body'> {
     body: _createUser;
 }
 
-export const registerRequest = async ( request: RegisterRequest ) => {
+const registerRequest = async ( request: RegisterRequest ) => {
     const { username, email, password } = request.body;
     if (!username || !email || !password) {
         return {
@@ -100,7 +100,7 @@ export async function validateUser(token: string) {
     return await Jwt.verify(token);
 }
 
-export async function validateUserRequest (context:{ body : { token: string }, jwt: any })  {
+async function validateUserRequest (context:{ body : { token: string }, jwt: any })  {
     const result: JWTPayloadSpec | false = await validateUser(context.body.token);
     if(result) {
         return {
@@ -113,7 +113,6 @@ export async function validateUserRequest (context:{ body : { token: string }, j
         body: { message: "Access Denied" }
     };
 }
-
 
 export const auth = new Elysia({ prefix: '/auth' })
     .post("/validate", validateUserRequest, {
