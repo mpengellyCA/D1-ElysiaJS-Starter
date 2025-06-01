@@ -114,6 +114,23 @@ async function validateUserRequest (context:{ body : { token: string }, jwt: any
     };
 }
 
+async function requestVerifyChallenge(context: { body: { id: number } }) {
+        //TODO: Implement the logic to request a verification challenge
+        console.log('Requesting verification challenge for user ID:', context.body.id);
+        return {
+            status: 200,
+            body: { message: "Verification challenge requested successfully", userId: context.body.id }
+        }
+}
+async function respondVerifyChallenge(context: { params: { code: string } }) {
+        //TODO: Implement the logic to respond to a verification challenge
+        console.log('Responding to verification challenge for with code:', context.params);
+        return {
+            status: 200,
+            body: { message: "Verification challenge responded successfully", code: context.params.code }
+        };
+}
+
 export const auth = new Elysia({ prefix: '/auth' })
     .post("/validate", validateUserRequest, {
         body: t.Object({token: t.String()}),
@@ -126,4 +143,14 @@ export const auth = new Elysia({ prefix: '/auth' })
     .post("/register", registerRequest, {
         body: t.Pick(m.User._createUser, ["username", "email", "password"]),
         detail: { tags: ['Auth'] }
+    })
+    .group('/verify', (verify)=> {
+        return verify
+            .post("/request", requestVerifyChallenge, {
+                body: t.Object({ id: t.Number() }),
+                detail: { tags: ['Auth'] }
+            })
+            .post("/respond/:code", respondVerifyChallenge, {
+                detail: { tags: ['Auth'] }
+            })
     });
