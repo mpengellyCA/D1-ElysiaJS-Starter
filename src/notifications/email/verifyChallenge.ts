@@ -1,4 +1,3 @@
-import {type _viewUser} from "../../models/User";
 import {smtp} from "../../services/smtp";
 
 

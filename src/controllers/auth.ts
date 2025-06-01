@@ -1,8 +1,8 @@
 import { db } from "../services/db";
 import { eq } from "drizzle-orm";
 import { table } from "../schema";
-import {BunRequest, CSRF} from "bun";
-import {type _createUser, _viewUser} from "../models/User";
+import {BunRequest} from "bun";
+import {type _createUser} from "../models/User";
 import { Jwt } from "../services/jwt";
 import { JWTPayloadSpec } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
