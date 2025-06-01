@@ -1,9 +1,9 @@
-import  * as User from './User'
+import * as User from "./User";
 
 export const models = {
-    User
-} as const
+  User,
+} as const;
 
-export const m = models
-export type models = typeof models
-export type m = typeof m
+export const m = models;
+export type models = typeof models;
+export type m = typeof m;
