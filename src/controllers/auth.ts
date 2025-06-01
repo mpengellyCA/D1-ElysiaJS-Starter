@@ -1,12 +1,14 @@
-import { db } from "../db";
+import { db } from "../services/db";
 import { eq } from "drizzle-orm";
 import { table } from "../schema";
-import { BunRequest } from "bun";
-import { type _createUser } from "../models/User";
-import { Jwt } from "../jwt";
+import {BunRequest, CSRF} from "bun";
+import {type _createUser, _viewUser} from "../models/User";
+import { Jwt } from "../services/jwt";
 import { JWTPayloadSpec } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
 import { m } from "../models";
+import {sendVerifyChallengeEmail} from "../notifications/email/verifyChallenge";
+
 
 async function loginRequest(context: {
   body: { username: string; password: string };
@@ -114,8 +116,28 @@ const registerRequest = async (request: RegisterRequest) => {
     body: { message: "User registered successfully", user: newUser },
   };
 };
-export async function validateUser(token: string) {
-  return await Jwt.verify(token);
+
+interface validatedUser extends JWTPayloadSpec {
+    user: {
+        id: number;
+        username: string;
+    },
+    timestamp: string;
+}
+
+export async function validateUser(token: string): Promise< validatedUser | false> {
+  const vu: any = await Jwt.verify(token);
+  if (!vu || !vu.user || !vu.user.id || !vu.user.username || !vu.timestamp) {
+      return false;
+  }
+  return {
+    ...vu,
+    user: {
+      id: vu.user.id,
+      username: vu.user.username,
+    },
+    timestamp: vu.timestamp,
+  }
 }
 async function validateUserRequest(context: {
   body: { token: string };
@@ -133,12 +155,33 @@ async function validateUserRequest(context: {
     body: { message: "Access Denied" },
   };
 }
-async function requestVerifyChallenge(context: { body: { id: number } }) {
-  //TODO: Implement the logic to request a verification challenge
-  console.log(
-    "Requesting verification challenge for user ID:",
-    context.body.id,
-  );
+async function requestVerifyChallenge(context: { body: { id: number, token: string } }) {
+  const tokenData: any = await validateUser(context.body.token)
+  if(!tokenData || tokenData.user.id !== context.body.id) {
+    return {
+      status: 401,
+      body: { message: "Invalid token or user ID mismatch" },
+    };
+  }
+  const challengeCode = generateChallengeCode(12)
+  const user = await db.query.users.findFirst({
+    where: eq(table.users.id, context.body.id),
+  });
+  if (!user) {
+      return {
+      status: 404,
+      body: { message: "User not found" },
+      };
+  }
+  await sendVerifyChallengeEmail(challengeCode, user);
+  await db.insert(table.verificationChallenge).values({
+    userId: user.id,
+    code: challengeCode,
+    createdAt: new Date().toString(),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toString(), // 60 minutes
+    isUsed: false,
+    type: "email"
+  })
   return {
     status: 200,
     body: {
@@ -162,6 +205,19 @@ async function respondVerifyChallenge(context: { params: { code: string } }) {
   };
 }
 
+
+
+function generateChallengeCode(length) {
+  const characters ='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = "";
+  const charactersLength = characters.length;
+  for ( let i = 0; i < length; i++ ) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
+}
+
+
 export const auth = new Elysia({ prefix: "/auth" })
   .post("/validate", validateUserRequest, {
     body: t.Object({ token: t.String() }),
@@ -178,7 +234,7 @@ export const auth = new Elysia({ prefix: "/auth" })
   .group("/verify", (verify) => {
     return verify
       .post("/request", requestVerifyChallenge, {
-        body: t.Object({ id: t.Number() }),
+        body: t.Object({ id: t.Number(), token: t.String() }),
         detail: { tags: ["Auth"] },
       })
       .post("/respond/:code", respondVerifyChallenge, {

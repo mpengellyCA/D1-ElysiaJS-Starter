@@ -11,7 +11,8 @@
     "drizzle-kit": "^0.31.1",
     "drizzle-orm": "^0.44.1",
     "drizzle-typebox": "^0.3.3",
-    "elysia": "latest"
+    "elysia": "latest",
+    "nodemailer": "^7.0.3"
   },
   "devDependencies": {
     "@libsql/client": "^0.15.8",
