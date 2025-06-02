@@ -1,7 +1,8 @@
 import {smtp} from "../../services/smtp";
+import { User } from "../../models/User";
 
 
-export async function sendVerifyChallengeEmail(challenge: string, user ) {
+export async function sendVerifyChallengeEmail(challenge: string, user: User ) {
 
     const message = {
         from: "sender@example.com",

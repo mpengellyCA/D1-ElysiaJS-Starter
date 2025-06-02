@@ -2,11 +2,10 @@ import { db } from "../services/db";
 import { eq } from "drizzle-orm";
 import { table } from "../schema";
 import {BunRequest} from "bun";
-import {type _createUser} from "../models/User";
+import { User } from "../models/User";
 import { Jwt } from "../services/jwt";
 import { JWTPayloadSpec } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
-import { m } from "../models";
 import {sendVerifyChallengeEmail} from "../notifications/email/verifyChallenge";
 
 
@@ -21,9 +20,7 @@ async function loginRequest(context: {
       body: { error: "Username and password are required." },
     };
   }
-  const user = await db.query.users.findFirst({
-    where: eq(table.users.username, username),
-  });
+  const user = await (User.whereFirst({ username: username }) as Promise<User>);
   if (!user) {
     return {
       status: 401,
@@ -51,7 +48,7 @@ async function loginRequest(context: {
   };
 }
 interface RegisterRequest extends Omit<BunRequest, "body"> {
-  body: _createUser;
+  body: User;
 }
 const registerRequest = async (request: RegisterRequest) => {
   const { username, email, password } = request.body;
@@ -102,14 +99,12 @@ const registerRequest = async (request: RegisterRequest) => {
   }
 
   const hashedPassword = await Bun.password.hash(password);
-  const newUser: { id: Number; username: String }[] = await db
-    .insert(table.users)
-    .values({
-      username,
-      email,
-      password: hashedPassword,
-    })
-    .returning({ id: table.users.id, username: table.users.username });
+
+  const newUser = await User.create({
+    username: username,
+    email: email,
+    password: hashedPassword
+  })
 
   return {
     status: 201,
@@ -164,24 +159,23 @@ async function requestVerifyChallenge(context: { body: { id: number, token: stri
     };
   }
   const challengeCode = generateChallengeCode(12)
-  const user = await db.query.users.findFirst({
-    where: eq(table.users.id, context.body.id),
-  });
+  const user: User = await (User.find(context.body.id) as Promise<User>);
   if (!user) {
       return {
       status: 404,
       body: { message: "User not found" },
       };
   }
+  console.log(user.id);
   await sendVerifyChallengeEmail(challengeCode, user);
-  await db.insert(table.verificationChallenge).values({
-    userId: user.id,
-    code: challengeCode,
-    createdAt: new Date().toString(),
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toString(), // 60 minutes
-    isUsed: false,
-    type: "email"
-  })
+  // await db.insert(table.verificationChallenge).values({
+  //   userId: user.id,
+  //   code: challengeCode,
+  //   createdAt: new Date().toString(),
+  //   expiresAt: new Date(Date.now() + 60 * 60 * 1000).toString(), // 60 minutes
+  //   isUsed: false,
+  //   type: "email"
+  // })
   return {
     status: 200,
     body: {
@@ -224,11 +218,11 @@ export const auth = new Elysia({ prefix: "/auth" })
     detail: { tags: ["Auth"] },
   })
   .post("/login", loginRequest, {
-    body: t.Pick(m.User._loginUser, ["username", "password"]),
+    body: t.Object({ username: t.String(), password: t.String() }),
     detail: { tags: ["Auth"] },
   })
   .post("/register", registerRequest, {
-    body: t.Pick(m.User._createUser, ["username", "email", "password"]),
+    body: t.Object({ username: t.String(), password: t.String(), email: t.String() }),
     detail: { tags: ["Auth"] },
   })
   .group("/verify", (verify) => {
